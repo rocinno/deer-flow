@@ -31,9 +31,27 @@ def repair_json_output(content: str) -> str:
             if content.endswith("```"):
                 content = content.removesuffix("```")
 
-            # Try to repair and parse JSON
-            repaired_content = json_repair.loads(content)
-            return json.dumps(repaired_content, ensure_ascii=False)
+            try:
+                # First try standard JSON parsing
+                json.loads(content)
+                return content
+            except json.JSONDecodeError as je:
+                logger.info(f"Standard JSON parsing failed, attempting repair: {je}")
+                # Try to repair and parse JSON
+                repaired_content = json_repair.loads(content)
+                return json.dumps(repaired_content, ensure_ascii=False)
         except Exception as e:
             logger.warning(f"JSON repair failed: {e}")
+            
+            # Additional fallback method for specific cases
+            try:
+                # Manual repair for common issues
+                # Replace incorrectly escaped quotes and fix missing commas
+                import re
+                fixed_content = re.sub(r'([^,{]\s*)"(\s*[},])', r'\1",\2', content)
+                fixed_content = re.sub(r'([^,\[]\s*)"(\s*[\]}])', r'\1",\2', fixed_content)
+                json_obj = json.loads(fixed_content)
+                return json.dumps(json_obj, ensure_ascii=False)
+            except Exception as e2:
+                logger.warning(f"Manual JSON repair also failed: {e2}")
     return content

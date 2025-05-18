@@ -34,6 +34,24 @@ const config = {
     });
     return config;
   },
+  
+  // Allow cross-origin requests during development
+  allowedDevOrigins: [
+    '34.136.71.19',
+    'localhost',
+    'http://34.136.71.19:3000',
+    'http://localhost:3000',
+  ],
+  
+  // Add proxy configuration to bypass CORS
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://34.136.71.19:8000/api/:path*',
+      },
+    ];
+  },
 };
 
 export default config;

@@ -117,9 +117,12 @@ def planner_node(
     logger.info(f"Planner response: {full_response}")
 
     try:
-        curr_plan = json.loads(repair_json_output(full_response))
-    except json.JSONDecodeError:
-        logger.warning("Planner response is not a valid JSON")
+        repaired_json = repair_json_output(full_response)
+        logger.debug(f"Repaired JSON: {repaired_json}")
+        curr_plan = json.loads(repaired_json)
+    except json.JSONDecodeError as e:
+        logger.warning(f"Planner response is not a valid JSON: {e}")
+        logger.warning(f"Original response: {full_response}")
         if plan_iterations > 0:
             return Command(goto="reporter")
         else:

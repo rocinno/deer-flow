@@ -38,24 +38,57 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Add CORS middleware
+# Add CORS middleware with explicit configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=[
+        "http://34.136.71.19:3000",   # Explicit frontend URL
+        "http://localhost:3000",      # Local development
+        "http://0.0.0.0:3000",        # Alternative local binding
+        "*"                          # Fallback for other origins
+    ],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With", 
+                  "X-CSRF-Token", "Cache-Control"],
+    expose_headers=["Content-Type", "Content-Length"],
+    max_age=600  # Cache preflight request results for 10 minutes
 )
+
+# Global OPTIONS handler for all routes
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    """
+    Global handler for OPTIONS requests to properly handle CORS preflight requests.
+    This ensures all preflight OPTIONS requests receive a 200 OK response with proper CORS headers.
+    """
+    response = Response(status_code=200)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token, Cache-Control"
+    response.headers["Access-Control-Max-Age"] = "600"  # Cache preflight for 10 minutes
+    return response
 
 graph = build_graph_with_memory()
 
+
+@app.options("/api/chat/stream")
+async def chat_stream_options():
+    # Handle OPTIONS request (preflight)
+    response = Response(status_code=200)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Cache-Control"
+    return response
 
 @app.post("/api/chat/stream")
 async def chat_stream(request: ChatRequest):
     thread_id = request.thread_id
     if thread_id == "__default__":
         thread_id = str(uuid4())
-    return StreamingResponse(
+    response = StreamingResponse(
         _astream_workflow_generator(
             request.model_dump()["messages"],
             thread_id,
@@ -68,6 +101,14 @@ async def chat_stream(request: ChatRequest):
         ),
         media_type="text/event-stream",
     )
+    
+    # Manually set CORS headers to ensure they're properly applied
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Cache-Control"
+    
+    return response
 
 
 async def _astream_workflow_generator(
